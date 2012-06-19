@@ -23,6 +23,8 @@ var autodj = false;
 var autobop = false;
 var isFriendly = false;
 var isGrateful = false;
+var djannounce = 'off';
+var djgoodbye = 'off';
 
 /*
  *  Make him bop
@@ -99,6 +101,7 @@ bot.on('speak', function (data) {
         }
       }
    }
+   console.log(text);
 });
 
 doautodj = function(data) {
@@ -138,22 +141,24 @@ bot.on('rem_dj', doautodj);
 bot.on('endsong', doautodj);
 
 // greet the new peeps
-bot.on('registered', function(data) {
-  if (isFriendly) {
-    doit = rand();
-    if ( doit >= 3 && doit <= 6 ) {
-      setTimeout(function() { bot.speak("Hi " + data.user[0].name +".  Great to have you here with us!"); }, wait(1,4));
+bot.on('add_dj', function(data) {
+  if (djannounce != 'off') {
+    announce = djannounce;
+    if (!announce) {
+      announce = "Hi " + data.user[0].name +".  Enjoy your time on stage.  Respect the other djs!";
     }
+    setTimeout(function() { bot.speak(announce); }, wait(1,4));
   }
 });
 
 // Say goodbye too!
-bot.on('deregistered', function(data) {
-  if (isFriendly) {
-    doit = rand();
-    if ( doit >= 3 && doit <= 4 ) {
-      setTimeout(function() { bot.speak("Hi " + data.user[0].name +".  Great to have you here with us!");}, wait(1,4));
+bot.on('rem_dj', function(data) {
+  if (djgoodbye != 'off') {
+    bye = djgoodbye;
+    if (!bye) {
+      bye = "Thanks for playing " + data.user[0].name + " :)";
     }
+    setTimeout(function() { bot.speak(bye);}, wait(1,4));
   }
 });
 
@@ -288,6 +293,24 @@ bot.on('pmmed', function (data) {
               doautodj();
               doAutoBop(autobop);
               break;
+            case 'djannounce':
+              djannounce = extra_args;
+              message = "Changing DJ Announce to: " + djannounce;
+              bot.pm(message, senderid);
+              console.log(message);
+              break;
+            case 'djgoodbye':
+              djgoodbye = extra_args;
+              message = "Changing DJ Goodbye to: " + djannounce;
+              bot.pm(message, senderid);
+              console.log(message);
+              break;
+            case 'snag':
+              snag = extra_args;
+              message = "Changing snag threshold to: " + snag;
+              bot.pm(message, senderid);
+              console.log(message);
+              break;
             case 'snag':
               snag = extra_args;
               message = "Changing snag threshold to: " + snag;
@@ -320,6 +343,12 @@ bot.on('pmmed', function (data) {
           switch(arg) {
             case 'chatty':
               bot.pm(isChatty, senderid);
+              break;
+            case 'djannounce':
+              bot.pm(djannounce, senderid);
+              break;
+            case 'djgoodbye':
+              bot.pm(djgoodbye, senderid);
               break;
             case 'grateful':
               bot.pm(isGrateful, senderid);
