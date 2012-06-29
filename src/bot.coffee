@@ -37,20 +37,23 @@ class TTBot extends Bot
   roomId: null
   votes: 0
   vote_attempts: 0
+  room_rules: "Play whatever you want, as long as it's alt/grunge/indie/etc from the 80's to current. Respect your other DJ's on stage - show them some love - awesome their songs! And show @subadubadoo some respect! He loves to dance and eat and imbibe various liquids."
   toggles: {
     autodj: false
     autobop: false
-    friendly: false
+    do_dj_announce: false
+    friendly: true
     snarky: false
-    grateful: false
-    chatty: false
+    grateful: true
+    chatty: true
+    likes_to_drink: true
   }
-  djannounce: false
+  djannounce: "Welcome! Play good music, awesome every song, don't be a dick."
   djgoodbye: false
-  likes_to_drink: false
   autodj_threshold: 2
 
   constructor: (@userId, @authId, @roomId) ->
+    @interact = new Interactivity this
     super(@userId, @authId, @roomId)
 
   reset: () ->
@@ -59,39 +62,39 @@ class TTBot extends Bot
 
   update: (data, cb) ->
     if data
-      debug "Updating bot with data: #{util.inspect data, true, 5}"
+      #debug "Updating bot with data: #{util.inspect data, true, 5}"
       if data.room
-        debug "Room info before update: #{util.inspect @room}"
+        #debug "Room info before update: #{util.inspect @room}"
         if @room
           @room.update data.room
         else
           @room = new Room data.room
-        debug "Room info after update: #{util.inspect @room}"
+          #debug "Room info after update: #{util.inspect @room}"
 
       if data.speaker
-        debug "Speaker info before updte: #{util.inspect @speaker}"
+        #debug "Speaker info before updte: #{util.inspect @speaker}"
         @speaker = new Speaker data.speaker.userid, data.speaker.name, data.speaker.text
-        debug "Speaker info after updte: #{util.inspect @speaker}"
+        #debug "Speaker info after updte: #{util.inspect @speaker}"
 
       if data.pm
-        debug "PM info before update: #{util.inspect @pm_obj}"
+        #debug "PM info before update: #{util.inspect @pm_obj}"
         @pm_obj= new Pm data.pm, @room, this
-        debug "PM info after update: #{util.inspect @pm_obj}"
-
+        #debug "PM info after update: #{util.inspect @pm_obj}"
     else
       @roomInfo (data) => @update {room: data}
 
-    operator: new Operate this
-    moderator: new Moderate this
+    #operator: new Operate this
+    #moderator: new Moderate this
     if cb
       cb()
 
-  operate: () ->
-    @question_ones_makeup()
-    @eat_a_subasnack()
-    @drink_some_water()
-    @drink_some_booze()
-    @time_to_dance()
+  operate: () =>
+    @interact.question_ones_makeup()
+    @interact.eat_a_subasnack()
+    @interact.drink_some_water()
+    @interact.drink_some_booze()
+    @interact.time_to_dance()
+    @interact.what_are_the_rules()
     #    @operator.do @speaker
     #    @moderator.do @speaker
 
@@ -111,7 +114,7 @@ class TTBot extends Bot
             @upvote() unless @vote_attemtps > 5
         else
           @votes = 1
-          @vote_commentary()
+          @interact.vote_commentary()
       )
     setTimeout do_vote, time
 
@@ -120,31 +123,17 @@ class TTBot extends Bot
     @vote('down')
     @votes = -1
 
-  drink_some_water: () ->
-    if @speaker.text.match(/.j subawater/)
-      if @isGrateful
-        msg = switch rand() % 3
-                when 0 then "I appreciate the gesture, but don't you have something a little stronger?"
-                when 1 then "Thanks #{@speaker.name}.  All those subasnacks were making me thirsty."
-                when 2 then "It is a bit hot in here..."
-        cb = -> @speak msg
-        setTimeout cb, wait(1,3)
-
-  drink_some_booze: () ->
-    if @speaker.text.match(/.j refreshing /)
-      if @likes_to_drink
-        msg = switch rand() % 3
-                when 0 then "I don't usually drink on the job... but ok, thanks #{@speaker.name}!"
-                when 1 then "w00t! Let's get wasted!"
-                when 2 then "Are you trying to get me fired?  Do you want me to boot you?!"
-        cb = -> @speak msg
-        setTimeout cb, wait(1,3)
-      @upvote()
-
   dj_down: () -> @remdDj USERID
 
   dj_up: () -> @addDj()
 
+  do_new_song: (data) ->
+    @update {room: data}
+    @reset()
+
+  do_end_song: () ->
+    @interact.announce_stats()
+    @autodj()
   ##  Returns:
   ##    1  : djup
   ##    0  : no action
@@ -172,7 +161,7 @@ class TTBot extends Bot
           @speak "Turtles after this song!"
           cb = -> @dj_down
           @on "endsong", cb
-          @on "newsong", -> @removeListener "endsong", cb
+          @on "newsong", -> @once "endsong", cb
         else
           debug "####  Too many djs.  Getting down. ####"
           @speak "Who likes turtles?"
@@ -182,25 +171,6 @@ class TTBot extends Bot
         setTimeout @speak("Looks like there's room for me!  w00t!"), wait()
         @dj_up()
 
-  eat_a_subasnack: () ->
-    if @speaker.text.match(/\.j subasnack/)
-
-      if @isGrateful
-        cb = -> @speak "Thanks for the subasnack #{@speaker.name}!"
-        setTimeout cb, wait(1, 2)
-      @upvote()
-
-  time_to_dance: () ->
-    match = (str for str in @dance_matches when @speaker.text.match str)
-    util.inspect match
-    if match.length
-      @upvote()
-
-  announce_stats: () =>
-    debug "#### Speaking song stats ####"
-    log @song_recap()
-    @speak @song_recap()
-
 #  snag_song: () ->
 #    #      if percent >= snag
 #    #        unless snag is false
@@ -209,68 +179,129 @@ class TTBot extends Bot
 #    #          debug "\n#### Added song ####\n " + current_song.metadata.artist + " // " + current_song.metadata.song + " :: " + Math.round(@room.vote_percentage) + "\n"
 #    #
 
+  do_new_dj: (data) =>
+    #@do_auto
+    @interact.do_dj_announce(data.user[0].name)
+
   do_pm_action: () =>
     m = new Moderate this
     @pm_obj.decide (pm) =>
       m.do pm
 
-  do_dj_announce: () ->
-    cb = -> @speak(@djannounce)
-    setTimeout cb, 2000
-
-  do_dj_goodbye: () ->
-    cb = -> @speak @djgoodbye
-    setTimeout cb, 2000
-
   song_recap: () ->
-    #debug "In song_recap: #{util.inspect this}"
     "#{@room.dj.name} Played: #{@room.song.artist} -- #{@room.song.name} -- :thumbsup:: #{@room.votes.up} :thumbsdown:: #{@room.votes.down} :heart:: #{@room.snags} :tomato:: #{Math.round(@room.vote_percentage())}%"
 
   log_song_info: () ->
     debug "#### Logging song stats ####"
     log @song_recap()
 
-  ##  Be a bit talkative regarding our vote
-  vote_commentary: () ->
-    return false unless bot.isSnarky
-    switch time / 1000
-      when 1
-        bot.speak "This song is awesome!"
-      when 2
-        bot.speak "Turtle bacon anyone?"
-      when 3
-        bot.speak "Dancing is fun"
-      when 4
-        bot.speak "Oooooh is this the Pearls Jams?"
-      when 5
-        bot.speak "b0rT!!??"
-      when 6
-        bot.speak "When can I play some music?"
-      when 7
-        bot.speak ":fire:"
-      when 8
-        bot.speak "/q please?"
-      when 9
-        bot.speak "I like turtles!"
-
-  question_ones_makeup: () ->
-    if @speaker.text.match(/sub.* bot/i)
-      msg = switch rand() % 5
-              when 0 then 'No way!'
-              when 1 then "Not that I'm aware of."
-              when 2 then "Are you questioning my humanity?"
-              when 3 then "That's a rude question!"
-              when 4 then "What do you think?"
-      cb = -> @speak msg
-      setTimeout cb, wait()
-
   toggle: (which) ->
     @toggles[which] = not @toggles[which]
+    debug util.inspect @toggles
 
   update_votes: (data) -> @room.update_votes(data)
 
 
 #################################################################################
+###   Interactivity class
+#################################################################################
+class Interactivity
+  constructor: (@bot) ->
+
+  announce_stats: () =>
+    debug "#### Speaking song stats ####"
+    if @bot.toggles.chatty
+      @bot.speak @bot.song_recap()
+    log @bot.song_recap()
+
+  do_dj_announce: (name) =>
+    if @bot.toggles.do_dj_announce
+      if @bot.djannounce?
+        cb = () => @bot.speak("Hi #{name}.  " + @bot.djannounce)
+        setTimeout cb, 2000
+
+  do_dj_goodbye: () =>
+    cb = () => @bot.speak @bot.djgoodbye
+    setTimeout cb, 2000
+
+  drink_some_booze: () =>
+    if @bot.speaker.text.match(/.j refreshing /)
+      if @bot.toggles.likes_to_drink
+        msg = switch rand() % 3
+                when 0 then "I don't usually drink on the job... but ok, thanks #{@bot.speaker.name}!"
+                when 1 then "w00t! Let's get wasted!"
+                when 2 then "Are you trying to get me fired?  Do you want me to boot you?!"
+        cb = () => @bot.speak msg
+        setTimeout cb, wait(1,3)
+      @bot.upvote()
+
+  drink_some_water: () =>
+    if @bot.speaker.text.match(/.j subawater/)
+      if @bot.toggles.grateful
+        msg = switch rand() % 3
+                when 0 then "I appreciate the gesture, but don't you have something a little stronger?"
+                when 1 then "Thanks #{@bot.speaker.name}.  All those subasnacks were making me thirsty."
+                when 2 then "It is a bit hot in here..."
+        cb = () => @bot.speak msg
+        setTimeout cb, wait(1,3)
+
+  eat_a_subasnack: () =>
+    if @bot.speaker.text.match(/\.j subasnack/)
+      if @bot.toggles.grateful
+        cb = () => @bot.speak "Thanks for the subasnack #{@bot.speaker.name}!"
+        setTimeout cb, wait(1, 2)
+      @bot.upvote()
+
+  question_ones_makeup: () =>
+    if @bot.toggles.chatty
+      if @bot.speaker.text.match(/sub.* b(o|0)r?t/i) or @bot.speaker.text.match(/b(o|0)r?t.* suba/)
+        msg = switch rand() % 5
+                when 0 then 'No way!'
+                when 1 then "Not that I'm aware of."
+                when 2 then "Are you questioning my humanity?"
+                when 3 then "That's a rude question!"
+                when 4 then "What do you think?"
+        cb = () => @bot.speak msg
+        setTimeout cb, wait()
+
+  time_to_dance: () =>
+    match = (str for str in @bot.dance_matches when @bot.speaker.text.match str)
+    if match.length
+      @bot.upvote()
+
+  what_are_the_rules: () =>
+    if @bot.toggles.chatty
+      if @bot.speaker.text.match(/^.j rules/)
+        @bot.speak @bot.room_rules if @bot.room_rules
+
+
+  ##  Be a bit talkative regarding our vote
+  vote_commentary: () =>
+    return false unless @bot.toggles.snarky
+    switch rand(1,20) % 20
+      when 1
+        @bot.speak "This song is awesome!"
+      when 2
+        @bot.speak "Turtle bacon anyone?"
+      when 3
+        @bot.speak "Dancing is fun"
+      when 4
+        @bot.speak "Oooooh is this the Pearls Jams?"
+      when 5
+        @bot.speak "b0rT!!??"
+      when 6
+        @bot.speak "When can I play some music?"
+      when 7
+        @bot.speak ":fire:"
+      when 8
+        @bot.speak "/q please?"
+      when 9
+        @bot.speak "I like turtles!"
+      when 10
+        @bot.speak "I don't especially like this song, but you are awesome #{@bot.speaker.name}!"
+
+
+#########################################################################
 ###   Room class
 #################################################################################
 class Room
@@ -333,7 +364,7 @@ class Room
     @description = room.description
     @name        = room.name
     @privacy     = room.privacy
-    #@snags       = room.snags ? 0
+    @snags       = room.snags ? 0
 
     if data.users
       @users = data.users
@@ -449,22 +480,13 @@ class Moderate
     what = data.arg
     to   = data.extra_args
 
-    this["set_#{what}"] to, data
-
-    msg = if to then "#{what} set to #{to}" else "#{what} set to #{@bot[what]}"
+    func = if @bot.toggles[what]? then () => @bot.toggle what else if this["set_#{what}"]? then () => this["set_#{what}"] to, data else () => @bot[what] = to
+    func()
+    msg = if to then "#{what} set to #{to}" else "#{what} set to #{@bot.toggles[what]}"
     data.respond msg
     debug msg
 
-  set_avatar: (arg) ->
-    @bot.setAvatar arg
-
-  set_friendly: (arg) -> @bot.toggle 'friendly'
-
-  set_chatty: (arg) -> @bot.toggle 'chatty'
-
-  set_grateful: (arg) -> @bot.toggle 'grateful'
-
-  set_snide: (arg) -> @bot.toggle 'snide'
+  set_avatar: (arg) -> @bot.setAvatar arg
 
   set_autodj: (arg) ->
     @bot.toggle 'autodj'
@@ -485,7 +507,8 @@ class Moderate
     @bot.roomRegister id
 
   show: (data) ->
-    data.respond @bot.toggles[data.arg] ? @bot[data.arg]
+    setting = @bot.toggles[data.arg] ? @bot[data.arg]
+    data.respond "#{data.arg} == #{setting}"
 
   skip: (data) -> @bot.skip
   snag: (data) -> @bot.snag
@@ -504,6 +527,18 @@ class Operate
     mod = new Moderate @bot
 
   do: (text) ->
+
+
+################################################################################
+##    Operate class
+################################################################################
+class UserManagement
+  constructor: (@bot) ->
+
+
+class DJQueue extends UserManagement
+
+class FastestFingers extends UserManagement
 
 
 ################################################################################
@@ -537,7 +572,7 @@ bot.on 'speak', (data) ->
   bot.update {speaker: data}, cb
 
 ######  add_dj  ##### 
-#bot.on "add_dj", bot.autodj
+bot.on "add_dj", (data) -> bot.do_new_dj(data)
 
 #####  rem_dj  ##### 
 #bot.on "rem_dj", (data) ->
@@ -551,11 +586,10 @@ bot.on 'speak', (data) ->
 
 #####  endsong  ##### 
 bot.on "endsong", () ->
-  bot.announce_stats()
-  bot.autodj()
+  bot.do_end_song()
 
 #####  newsong  ##### 
-bot.on "newsong", (data) -> bot.update {room: data}
+bot.on "newsong", (data) -> bot.do_new_song(data)
 
 #####  snagged  ##### 
 bot.on "snagged", () -> bot.room.snags++
@@ -565,6 +599,5 @@ bot.on 'pmmed', (pm) ->
   bot.update {pm: pm}, bot.do_pm_action
 
 #####  update_votes  #####
-bot.on 'update_votes', (data)->
-  bot.update_votes data
+bot.on 'update_votes', (data)-> bot.update_votes data
   
