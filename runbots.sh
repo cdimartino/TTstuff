@@ -1,5 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
-nohup node bots/bot_deluxe.js subadubadoo $1 >> subadubadoo.$1.log 2>&1 &
-nohup node bots/bot_deluxe.js dabadubadoo $1 > dabadubadoo.$1.log 2>&1 &
-nohup node bots/bot_deluxe.js dubadoo $1 > dubadoo.$1.log 2>&1 &
+pkill -f node
+for bot in subadubadoo dabadubadoo dubadoo; do
+  nohup /usr/bin/node lib/bot.js $bot $1 > $bot.$1.log 2>&1 &
+done
